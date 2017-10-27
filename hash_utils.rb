@@ -19,17 +19,8 @@ class Hash
         return self.tap { |_| self.delete(key_path.last) }
     end
 
-    keys = key_path.map do |k| 
-      case
-        when k.is_a?(String) 
-          "\"#{k}\""
-        when k.is_a?(Symbol)
-          ":#{k}"
-        else
-          k
-      end
-    end
-
+    keys = format_keys_for_eval(key_path)
+    
     cmd = 'self[' + keys[0...-1].join('][') + '].delete(key_path.last)'
     eval(cmd)
     
@@ -51,17 +42,35 @@ class Hash
     #   => {"A" => { "B" => { "C" => { "D1" => "E1", "D2" => "E2", "D3" => "E3" } } } }
     #
 
+    return self if key_path.empty?
+    
+    value = format_value_for_eval(value) 
+    keys  = format_keys_for_eval(key_path)
+
     # Create intermediate keys if necessary
     key_path[0..-1].each_index do |i|
       nested_key = 'self["' + key_path[0..i].join('"]["') +'"]'
       
       eval(nested_key + " = {}") if eval(nested_key).nil?
     end
-    
-    cmd = 'self["' + key_path.join('"]["') + '"] = ' + (value.is_a?(String) ? "\"#{value}\"" : value.to_s)
-    eval(cmd)
 
-  rescue
+    cmd   = 'self[' + keys.join('][') + '] = ' + value
+    eval(cmd)
+  
+  # No Implicit conversion of type into string
+  rescue TypeError
+    begin
+      cmd = 'self[' + keys.join('][') + '] = ' + "#{value}"
+      eval(cmd)
+
+    # This usually occurs when assigning to an Object:
+    #   self["X"] = #<Class:0x007faee4086ae8>
+    #
+    # Need to use the convoluted method below to reference the object
+    rescue SyntaxError 
+      cmd = 'self[' + keys.join('][') + '] = ' + 'ObjectSpace._id2ref(' + value.object_id.to_s + ')'
+      eval(cmd)
+    end
   ensure
     return self
   end
@@ -125,4 +134,34 @@ class Hash
 
     self.map {|k, v| v.is_a?(Hash) ? [k, *v.key_hierarchy] : k }
   end
+
+
+  def format_keys_for_eval(key_path)
+    key_path.map do |k| 
+      case
+        when k.is_a?(String) 
+          "\"#{k}\""
+        when k.is_a?(Symbol)
+          ":#{k}"
+        else
+          k
+      end
+    end
+  end
+
+  private :format_keys_for_eval
+
+
+  def format_value_for_eval(value)
+    if value.is_a?(String)
+      "\"#{value}\""
+    elsif value.is_a?(Symbol)
+      ":#{value}"
+    else
+      value
+    end
+  end
+
+  private :format_value_for_eval
+
 end
