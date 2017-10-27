@@ -73,11 +73,11 @@ class Hash
     # Similar to the `flatten` method on Array
     # Will return all hash keys, irrespsective of their nesting
     #
-    # hash:   {"A" => {"B" => { "C" => "D" , "E" => "F" } } }
+    # hash:   {"A" => {"B" => { "C" => "D" , "E" => "F" } } , "G" => "H" }
     #
     # hash.flatten_keys
     #
-    #   => ["A", "B", "C", "E" ]
+    #   => ["A", "B", "C", "E", "G"]
 
     self.map {|k, v| v.is_a?(Hash) ? [k, v.flatten_keys].flatten : [k] }.flatten
   end
@@ -98,7 +98,7 @@ class Hash
   end
 
   
-  def flatten_all
+  def flatten_key_values
     #
     # Similar to the `flatten` method on Array
     # Will return all hash keys and values, irrespsective of their nesting
@@ -109,22 +109,30 @@ class Hash
     #
     #   => ["A", "B", "C", "D", "E", "F", "G", "H"]
 
-    self.map {|k, v| v.is_a?(Hash) ? [k, v.flatten_all] : [k, v] }.flatten
+    self.map {|k, v| v.is_a?(Hash) ? [k, v.flatten_key_values] : [k, v] }.flatten
   end
   
   
-  def key_hierarchy #FIXME
+  def key_hierarchy
     #
-    # Similar to the `flatten` method on Array
-    # Will return all hash keys, irrespsective of their nesting
+    # Returns a nested array of hash keys
     #
-    # hash:   {"A" => {"B" => { "C" => "D" , "E" => "F" } } }
+    # {"A" => "B" , "C" => "D"}.key_hierarchy
     #
-    # hash.flatten_keys
+    #     => [["A"], ["C"]]
     #
-    #   => ["A", "B", "C", "E" ]
+    #
+    # {"A" => {"B" => "b"} , "C" => {"D" => 'd'}}.key_hierarchy
+    #
+    #     => [["A", [["B"]]], ["C", [["D"]]]]
+    #
+    #
+    # {"A"=>{"B"=>{"C"=>"D", "E"=>"F"}, "x"=>{"y"=>{"z"=>{"q"=>"l"}}}}, "a"=>"b"}.key_hierarchy
+    #
+    #     => [["A", [["B", [["C"], ["E"]]], ["x", [["y", [["z", [["q"]]]]]]]]], ["a"]]
+    #
 
-    self.map {|k, v| v.is_a?(Hash) ? [k, *v.key_hierarchy] : k }
+    self.map { |k, v| v.is_a?(Hash) ? [k, [v.key_hierarchy].to_a.flatten(1)] : [k] }
   end
 
 
