@@ -32,6 +32,7 @@ class Hash
     #
     # Similar to the Hash.dig method, but modifies the value instead of returning it
     # Supports updating values of existing keys, and inserting additonal keys
+    # Will create any keys along the path if they are not present
     #
     # hash:     {"A" => { "B" => { "C" => { "D1" => "E1", "D2" => "E2" } } } }
     # key_path: ["A", "B", "C", "D3"]
@@ -47,29 +48,20 @@ class Hash
     value = format_value_for_eval(value) 
     keys  = format_keys_for_eval(key_path)
 
-    # Create intermediate keys if necessary
-    key_path[0..-1].each_index do |i|
-      nested_key = 'self["' + key_path[0..i].join('"]["') +'"]'
-      
-      eval(nested_key + " = {}") if eval(nested_key).nil?
-    end
-
-    cmd   = 'self[' + keys.join('][') + '] = ' + value
-    eval(cmd)
+    key_path = create_key_path_to_value_if_missing(keys)
+    eval(key_path + ' = ' + value)
   
   # No Implicit conversion of type into string
   rescue TypeError
     begin
-      cmd = 'self[' + keys.join('][') + '] = ' + "#{value}"
-      eval(cmd)
+      eval(key_path + ' = ' + "#{value}")
 
     # This usually occurs when assigning to an Object:
     #   self["X"] = #<Class:0x007faee4086ae8>
     #
     # Need to use the convoluted method below to reference the object
     rescue SyntaxError 
-      cmd = 'self[' + keys.join('][') + '] = ' + 'ObjectSpace._id2ref(' + value.object_id.to_s + ')'
-      eval(cmd)
+      eval(key_path + ' = ' + 'ObjectSpace._id2ref(' + value.object_id.to_s + ')')
     end
   ensure
     return self
@@ -143,6 +135,8 @@ class Hash
           "\"#{k}\""
         when k.is_a?(Symbol)
           ":#{k}"
+        when k.is_a?(Array)
+          k.to_s
         else
           k
       end
@@ -163,5 +157,33 @@ class Hash
   end
 
   private :format_value_for_eval
+
+
+  def create_key_path_to_value_if_missing(keys)
+    
+    # Create intermediate keys if necessary
+    key_path = 'self'
+
+    keys.each_index do |i|
+      begin
+        key_path_next = key_path + '[' + keys[i].to_s + ']'
+        eval(key_path_next + " = {}") unless eval(key_path_next).is_a?(Hash)
+      
+      rescue TypeError, SyntaxError
+        # Cannot call eval on an object in the format myHash[#<Class:0x007fe994026a18>]
+        # Need to reference it by its object_id
+        key_path_next = "#{key_path}[ObjectSpace._id2ref(" + keys[i].object_id.to_s + ')]'
+        eval(key_path_next + " = {}") unless eval(key_path_next).is_a?(Hash)
+      
+      ensure
+        key_path = key_path_next
+      end
+    end
+
+    key_path
+  end
+
+  private :create_key_path_to_value_if_missing
+
 
 end

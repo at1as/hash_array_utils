@@ -132,6 +132,13 @@ class TestDeleteByKeyPath < MiniTest::Test
       {"A" => { "B" => { "C" => {}}}}
     )
   end
+  
+  def test_delete_key_for_class_value
+    assert_equal(
+      {"A" => { "B" => { "C" => { "D" => Struct }}}}.delete_by_key_path(["A", "B", "C", "D"]),
+      {"A" => { "B" => { "C" => {}}}}
+    )
+  end
 
   ### KEY TYPES
   def test_delete_key_for_symbol_key
@@ -169,6 +176,40 @@ class TestDeleteByKeyPath < MiniTest::Test
     )
   end
   
+  def test_delete_key_mid_array_key
+    assert_equal(
+      {"A" => { [] => { [] => 4 }}}.delete_by_key_path(["A", [], [] ]),
+      {"A" => { [] => { } } }
+    )
+  end
+  
+  def test_delete_key_deeply_nested_array_at_end
+    key_path = [
+      "A",
+      [],
+      [[], [[[]]], {}, ["X", "Y", ["Z", "A", ['a']]]]
+    ]
+
+    assert_equal(
+      {"A" => { [] => { [[], [[[]]], {}, ["X", "Y", ["Z", "A", ['a']]]] => 4 }}}.delete_by_key_path(key_path),
+      {"A" => { [] => { } } }
+    )
+  end
+  
+  def test_delete_key_deeply_nested_array_in_middle
+    key_path = [
+      "A",
+      [[], [[[]]], {}, ["X", "Y", ["Z", "A", ['a']]]],
+      "B",
+      []
+    ]
+
+    assert_equal(
+      {"A" => { [[], [[[]]], {}, ["X", "Y", ["Z", "A", ['a']]]] => { "B" => { [] => "C" } }}}.delete_by_key_path(key_path),
+      {"A" => { [[], [[[]]], {}, ["X", "Y", ["Z", "A", ['a']]]] => { "B" => { } }}}
+    )
+  end
+  
   def test_delete_key_struct_key
     struct = Struct.new(:x)
     assert_equal(
@@ -177,6 +218,14 @@ class TestDeleteByKeyPath < MiniTest::Test
     )
   end
   
+  def test_delete_key_struct_key
+    struct = Struct
+    assert_equal(
+      {"A" => { "B" => { struct => 4 }}}.delete_by_key_path(["A", "B", struct ]),
+      {"A" => { "B" => { } } }
+    )
+  end
+
   ### COMPEX Hash
   def test_delete_nested_key_preserves_keys_at_same_level
     assert_equal(
@@ -212,6 +261,24 @@ class TestDeleteByKeyPath < MiniTest::Test
         }
       }
     )
+  end
+
+  def test_objects_are_value_objects
+    first  = {"X" => "Y", "A" => "B"}
+    second = {"X" => "Y", "A" => "B"}
+
+    assert(first == second)
+    assert(first === second)
+
+    first.delete_by_key_path(["A"])
+
+    assert !(first == second)
+    assert !(first === second)
+
+    second.delete_by_key_path(["A"])
+
+    assert(first == second)
+    assert(first === second)
   end
 
 end
