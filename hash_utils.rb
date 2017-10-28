@@ -12,6 +12,9 @@ class Hash
     #
     #   => {"A" => { "B" => { "C" => { "D2" => "E2" } } } }
     #
+    # Method modifies hash in place
+    #
+    
     case
       when key_path.empty? || self.empty?
         return self
@@ -42,13 +45,15 @@ class Hash
     #
     #   => {"A" => { "B" => { "C" => { "D1" => "E1", "D2" => "E2", "D3" => "E3" } } } }
     #
+    # Method modifies hash in place
+    #
 
     return self if key_path.empty?
     
     value = format_value_for_eval(value) 
     keys  = format_keys_for_eval(key_path)
 
-    key_path = create_key_path_to_value_if_missing(keys)
+    key_path = get_key_path_to_value(keys)
     eval(key_path + ' = ' + value)
   
   # No Implicit conversion of type into string
@@ -79,7 +84,7 @@ class Hash
     #
     #   => ["A", "B", "C", "E", "G"]
 
-    self.map {|k, v| v.is_a?(Hash) ? [k, v.flatten_keys].flatten : [k] }.flatten
+    self.map {|k, v| v.is_a?(Hash) && !v.empty? ? [ (k == [] ? [[]] : k) , v.flatten_keys].flatten(1) : [k] }.flatten(1)
   end
   
   
@@ -94,7 +99,7 @@ class Hash
     #
     #   => ["D", "F", "H"]
 
-    self.map {|k, v| v.is_a?(Hash) ? v.flatten_values : [v] }.flatten
+    self.map {|k, v| v.is_a?(Hash) && !v.empty? ? v.flatten_values : [v] }.flatten(1)
   end
 
   
@@ -109,7 +114,17 @@ class Hash
     #
     #   => ["A", "B", "C", "D", "E", "F", "G", "H"]
 
-    self.map {|k, v| v.is_a?(Hash) ? [k, v.flatten_key_values] : [k, v] }.flatten
+    self.map do |k, v| 
+      case 
+        when v.is_a?(Hash) && !v.empty? 
+          [ 
+            (k == [] ? [[]] : k), # flatten(1) will remove any '[]' keys, so we pad to [[]] so it is preserved
+            v.flatten_key_values
+          ].flatten(1) 
+        else
+          [k, v]
+      end
+    end.flatten(1)
   end
   
   
@@ -132,10 +147,33 @@ class Hash
     #     => [["A", [["B", [["C"], ["E"]]], ["x", [["y", [["z", [["q"]]]]]]]]], ["a"]]
     #
 
-    self.map { |k, v| v.is_a?(Hash) ? [k, [v.key_hierarchy].to_a.flatten(1)] : [k] }
+    self.map { |k, v| v.is_a?(Hash) && !v.empty? ? [k, [v.key_hierarchy].to_a.flatten(1)] : [k] }
   end
 
 
+  def key_value_hierarchy
+    #
+    # Returns a nested array of hash keys. Essentially converts each hash and subhash to tuples
+    #
+    # {"A" => "B" , "C" => "D"}.key_value_hierarchy
+    #
+    #     => [["A", "B"], ["C", "D"]]
+    #
+    #
+    # {"A" => {"B" => "b"} , "C" => {"D" => 'd'}}.key_value_hierarchy
+    #
+    #     => [["A", [["B", "b"]]], ["C", [["D", "d"]]]]
+    #
+    #
+    # {"A"=>{"B"=>{"C"=>"D", "E"=>"F"}, "x"=>{"y"=>{"z"=>{"q"=>"l"}}}}, "a"=>"b"}.key_value_hierarchy
+    #
+    #     => [["A", [["B", [["C", "D"], ["E", "F"]]], ["x", [["y", [["z", [["q", "l"]]]]]]]]], ["a", "b"]]
+    #
+
+    self.map { |k, v| v.is_a?(Hash) && !v.empty? ? [k, [v.key_value_hierarchy].flatten(1)] : [k, v] }
+  end
+  
+  
   def format_keys_for_eval(key_path)
     key_path.map do |k| 
       case
@@ -167,9 +205,14 @@ class Hash
   private :format_value_for_eval
 
 
-  def create_key_path_to_value_if_missing(keys)
-    
-    # Create intermediate keys if necessary
+  def get_key_path_to_value(keys)
+    #
+    # keys : ["A", "B", "C"]
+    #
+    # returns self["A"]["B"]["C"] for any type of key
+    #
+    # Will create the keys along the path if they do not exist
+
     key_path = 'self'
 
     keys.each_index do |i|
@@ -191,7 +234,7 @@ class Hash
     key_path
   end
 
-  private :create_key_path_to_value_if_missing
+  private :get_key_path_to_value
 
 
 end

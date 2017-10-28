@@ -1,7 +1,7 @@
 require 'minitest/autorun'
 require_relative '../hash_utils.rb'
 
-class TestDeleteByKeyPath < MiniTest::Test
+class TestInsertByKeyPath < MiniTest::Test
 
   def setup
   end
